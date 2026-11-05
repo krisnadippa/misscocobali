@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { saveOrder, StoredOrder } from "@/lib/orders-db";
+import { notifyNewOrderToWhatsAppGroup } from "@/lib/wablas";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +20,47 @@ export async function POST(request: Request) {
       secretKey.startsWith("xnd_") && !secretKey.includes("YOUR_SECRET_KEY_HERE");
 
     const externalId = `INV-ZST-${Date.now().toString().slice(-7)}`;
+    const orderId = `ORD-WB-${Date.now().toString().slice(-6)}`;
+
+    // Format rincian produk
+    const detailedItems = Array.isArray(items)
+      ? items.map((it: { name: string; quantity: number; price: number }) => ({
+          name: it.name,
+          qty: it.quantity,
+          unitPrice: it.price,
+          total: it.price * it.quantity,
+        }))
+      : [];
+
+    const itemsSummary = detailedItems
+      .map((it) => `${it.qty}x ${it.name}`)
+      .join(", ") || "Pesanan Produk Zestó";
+
+    // 1. Simpan pesanan ke Database Website
+    const storedOrder: StoredOrder = {
+      id: orderId,
+      invoiceNo: externalId,
+      source: "website",
+      customerName: customerName || "Customer Zesto Bali",
+      customerPhone: customerPhone || "-",
+      customerEmail: customerEmail || "customer@zestobali.com",
+      address: address || "Bali, Indonesia",
+      itemsSummary,
+      detailedItems,
+      totalAmount: Math.round(amount),
+      status: "Menunggu Pembayaran",
+      paymentMethod: "Xendit Payment Gateway",
+      createdAt: new Date().toLocaleString("id-ID", { timeZone: "Asia/Makassar" }),
+      notificationStatus: "skipped",
+    };
+
+    saveOrder(storedOrder);
+
+    // 2. Kirim Notifikasi Pesanan ke Grup WhatsApp via Wablas secara Asynchronous (Non-blocking)
+    // Jika Wablas down atau trial kuota habis, checkout pelanggan TIDAK TERGANGGU sama sekali.
+    notifyNewOrderToWhatsAppGroup(storedOrder).catch((waErr) => {
+      console.warn("⚠️ [WhatsApp Notification Background Error]:", waErr);
+    });
 
     // If real Xendit API key is configured in .env.local, call Xendit v2 Invoice API
     if (isRealKeyConfigured) {

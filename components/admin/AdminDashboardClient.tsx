@@ -16,6 +16,7 @@ import GalleryView from "@/components/admin/views/GalleryView";
 import MailboxView from "@/components/admin/views/MailboxView";
 import SettingsView from "@/components/admin/views/SettingsView";
 import HelpSupportView from "@/components/admin/views/HelpSupportView";
+import WhatsAppSettingsView from "@/components/admin/views/WhatsAppSettingsView";
 
 export default function AdminDashboardClient() {
   const [activeTab, setActiveTab] = useState("Dashboard");
@@ -49,6 +50,8 @@ export default function AdminDashboardClient() {
         return <GalleryView />;
       case "Mailbox":
         return <MailboxView />;
+      case "WhatsApp":
+        return <WhatsAppSettingsView />;
       case "Settings":
         return <SettingsView />;
       case "Support":

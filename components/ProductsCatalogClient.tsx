@@ -111,7 +111,7 @@ export default function ProductsCatalogClient() {
 
   // Filter and Sort Logic
   const filteredProducts = useMemo(() => {
-    let result = ALL_CATALOG_PRODUCTS.filter((product) => {
+    const result = ALL_CATALOG_PRODUCTS.filter((product) => {
       const matchesCategory =
         selectedCategory === "all" || product.category === selectedCategory;
       const matchesSearch =

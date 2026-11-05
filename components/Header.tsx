@@ -32,12 +32,12 @@ export default function Header() {
           >
             Koleksi Produk
           </Link>
-          <a
+          <Link
             className="hover:text-zesto-lime flex items-center gap-1 transition-colors group"
             href="/#flavors"
           >
             Flavors
-          </a>
+          </Link>
           <a className="hover:text-zesto-lime transition-colors" href="#about">
             About
           </a>

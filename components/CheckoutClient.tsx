@@ -11,7 +11,6 @@ import {
   ArrowLeft,
   ChevronRight,
   Download,
-  ExternalLink,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatRupiah } from "@/data/flavors";

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import type { StoredOrder } from "@/lib/orders-db";
 
 export interface TransactionItem {
   id: string;
@@ -144,6 +145,39 @@ export default function TransactionsView() {
       notes: "Transaksi dibatalkan karena pembeli salah memilih varian rasa.",
     },
   ]);
+
+  // Load synced orders from DB (/api/orders) including WhatsApp manual orders
+  useEffect(() => {
+    fetch("/api/orders")
+      .then((res) => res.json())
+      .then((res) => {
+        if (res.success && Array.isArray(res.orders) && res.orders.length > 0) {
+          const dbItems: TransactionItem[] = res.orders.map((o: StoredOrder) => ({
+            id: o.id,
+            invoiceNo: o.invoiceNo,
+            customer: o.customerName + (o.source === "whatsapp" ? " [WhatsApp]" : ""),
+            customerEmail: o.customerEmail || "order@whatsapp.com",
+            customerPhone: o.customerPhone,
+            address: o.address || (o.source === "whatsapp" ? "Pesanan Manual WhatsApp Group" : "Bali Area"),
+            items: o.itemsSummary,
+            detailedItems: o.detailedItems || [{ name: o.itemsSummary, qty: 1, unitPrice: o.totalAmount, total: o.totalAmount }],
+            date: o.createdAt,
+            dueDate: o.createdAt,
+            amount: o.totalAmount,
+            method: o.source === "whatsapp" ? "WhatsApp Manual / Transfer" : o.paymentMethod || "Xendit Gateway",
+            status: o.status === "Berhasil" ? "Berhasil" : o.status === "Dibatalkan" ? "Dibatalkan" : "Menunggu Pembayaran",
+            notes: o.rawWhatsappMessage ? `Pesan WA: "${o.rawWhatsappMessage}"` : undefined,
+          }));
+
+          setTransactions((prev) => {
+            const existingIds = new Set(prev.map((p) => p.id));
+            const newOnes = dbItems.filter((d) => !existingIds.has(d.id));
+            return [...newOnes, ...prev];
+          });
+        }
+      })
+      .catch((err) => console.warn("Failed fetching synced orders:", err));
+  }, []);
 
   // Form State for creating a new transaction
   const [formData, setFormData] = useState({
