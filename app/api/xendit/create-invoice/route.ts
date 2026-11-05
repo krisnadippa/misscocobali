@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       customerEmail,
       customerPhone,
       address,
+      mapsUrl,
       items,
       shippingCost,
     } = body;
@@ -45,6 +46,7 @@ export async function POST(request: Request) {
       customerPhone: customerPhone || "-",
       customerEmail: customerEmail || "customer@zestobali.com",
       address: address || "Bali, Indonesia",
+      mapsUrl: mapsUrl || undefined,
       itemsSummary,
       detailedItems,
       totalAmount: Math.round(amount),

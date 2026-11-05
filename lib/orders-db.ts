@@ -17,6 +17,7 @@ export interface StoredOrder {
   customerPhone: string;
   customerEmail?: string;
   address?: string;
+  mapsUrl?: string;
   itemsSummary: string;
   detailedItems: OrderItemRecord[];
   totalAmount: number;

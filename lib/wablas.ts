@@ -135,7 +135,7 @@ export async function notifyNewOrderToWhatsAppGroup(order: StoredOrder): Promise
 *Invoice:* ${order.invoiceNo}
 *Nama Customer:* ${order.customerName}
 *Nomor HP:* ${order.customerPhone}
-*Alamat:* ${order.address || "Ambil di Toko / Bali Area"}
+*Alamat:* ${order.address || "Ambil di Toko / Bali Area"}${order.mapsUrl ? `\n📍 *Link Google Maps Kurir:*\n${order.mapsUrl}` : ""}
 
 *Rincian Item:*
 ${order.detailedItems && order.detailedItems.length > 0

@@ -11,6 +11,10 @@ import {
   ArrowLeft,
   ChevronRight,
   Download,
+  MapPin,
+  Navigation,
+  ExternalLink,
+  Check,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatRupiah } from "@/data/flavors";
@@ -95,6 +99,9 @@ export default function CheckoutClient() {
   const [customerEmail, setCustomerEmail] = useState("dharma.bali@gmail.com");
   const [customerPhone, setCustomerPhone] = useState("+62 812-3890-4411");
   const [address, setAddress] = useState("Villa Sunset Palm No. 4B, Jl. Pantai Batu Bolong, Canggu, Bali");
+  const [mapsUrl, setMapsUrl] = useState("");
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
   const [deliveryNotes, setDeliveryNotes] = useState("Titipkan ke security villa jika tidak ada di tempat.");
   const [shippingMethod, setShippingMethod] = useState<"gosend" | "grab" | "jne" | "pickup">("gosend");
 
@@ -163,6 +170,37 @@ export default function CheckoutClient() {
     }
   };
 
+  // Geolocation handler to get real-time device pin
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Browser Anda tidak mendukung deteksi lokasi otomatis.");
+      return;
+    }
+
+    setIsGettingLocation(true);
+    setLocationStatus("Sedang mengambil titik koordinat GPS...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const generatedUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+        setMapsUrl(generatedUrl);
+        setIsGettingLocation(false);
+        setLocationStatus(`✓ Titik lokasi GPS berhasil terpasang (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
+      },
+      (error) => {
+        setIsGettingLocation(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationStatus("Izin akses lokasi ditolak. Silakan tempel tautan Google Maps manual di bawah.");
+        } else {
+          setLocationStatus("Gagal membaca GPS. Silakan tempel tautan Google Maps manual.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   // Add recommendation to cart
   const handleAddRecommendation = (rec: AddonRecommendation) => {
     addToCart({
@@ -204,6 +242,7 @@ export default function CheckoutClient() {
           customerEmail,
           customerPhone,
           address,
+          mapsUrl: mapsUrl.trim() || undefined,
           items: displayItems,
           shippingCost,
         }),
@@ -576,6 +615,60 @@ export default function CheckoutClient() {
                     placeholder="Nama jalan, nomor villa/kamar, patokan area..."
                     className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 bg-[#f4f8f4] text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-[#0a3321]/20"
                   />
+                </div>
+
+                {/* Google Maps Pinpoint / Kurir Link */}
+                <div className="bg-[#f0f7f2] border border-[#0a3321]/15 rounded-2xl p-3.5 sm:p-4 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-[#0a3321]">
+                      <MapPin className="w-4 h-4 text-[#0a3321] shrink-0" />
+                      <span className="font-bold text-xs uppercase tracking-wider">
+                        Pinpoint Google Maps Kurir (Opsional &amp; Direkomendasikan)
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleGetCurrentLocation}
+                      disabled={isGettingLocation}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0a3321] text-[#C7F800] text-[11px] font-bold hover:bg-[#124b32] active:scale-95 transition-all shadow-sm w-fit"
+                    >
+                      <Navigation className={`w-3.5 h-3.5 ${isGettingLocation ? "animate-spin" : ""}`} />
+                      {isGettingLocation ? "Membaca GPS..." : "Gunakan Lokasi Saya Sekarang"}
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    Kurir GoSend / GrabExpress akan langsung membuka link Maps ini di HP mereka untuk menuju ke villa / tempat Anda tanpa perlu nyasar.
+                  </p>
+
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={mapsUrl}
+                      onChange={(e) => setMapsUrl(e.target.value)}
+                      placeholder="Contoh: https://maps.app.goo.gl/... atau koordinat otomatis"
+                      className="w-full px-3.5 py-2 rounded-xl border border-gray-200 bg-white text-slate-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0a3321]/20 pr-10"
+                    />
+                    {mapsUrl && (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#0a3321] p-1"
+                        title="Buka Pratinjau Maps"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+
+                  {locationStatus && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#0a3321]">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>{locationStatus}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">
