@@ -28,8 +28,9 @@ async function callWablasApi(
   endpoint: string,
   payload: Record<string, unknown>
 ): Promise<WablasSendResult> {
-  const apiUrl = (process.env.WABLAS_API_URL || "https://solo.wablas.com").replace(/\/$/, "");
+  const apiUrl = (process.env.WABLAS_API_URL || "https://kudus.wablas.com").replace(/\/$/, "");
   const token = process.env.WABLAS_API_TOKEN || "";
+  const secretKey = process.env.WABLAS_SECRET_KEY || "";
 
   if (!token) {
     return {
@@ -38,17 +39,20 @@ async function callWablasApi(
     };
   }
 
+  // Format otentikasi resmi Wablas: {token}.{secret_key} atau {token}
+  const authHeader = secretKey && !token.includes(".") ? `${token}.${secretKey}` : token;
+
   const fullUrl = `${apiUrl}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 detik timeout
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 detik timeout
 
   try {
     const res = await fetch(fullUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: token,
+        Authorization: authHeader,
       },
       body: JSON.stringify(payload),
       signal: controller.signal,
@@ -75,7 +79,7 @@ async function callWablasApi(
     const errorMessage = err instanceof Error ? err.message : String(err);
     return {
       success: false,
-      error: errorMessage.includes("aborted") ? "Koneksi ke Wablas timeout (8s)" : errorMessage,
+      error: errorMessage.includes("aborted") ? "Koneksi ke Wablas timeout" : errorMessage,
     };
   }
 }
@@ -88,7 +92,7 @@ export async function sendWhatsAppMessage(
   message: string
 ): Promise<WablasSendResult> {
   const phone = formatPhoneNumber(targetPhone);
-  return callWablasApi("/api/v2/send-message", {
+  return callWablasApi("/api/send-message", {
     phone,
     message,
   });
@@ -108,9 +112,11 @@ export async function sendWhatsAppToGroup(
     };
   }
 
-  // Sesuai dokumentasi resmi Wablas, kirim pesan grup menggunakan parameter isGroup: "true"
-  return callWablasApi("/api/v2/send-message", {
-    phone: groupId,
+  // Bersihkan ID grup (hapus @g.us jika ada agar format angka murni sesuai payload Wablas)
+  const cleanGroupId = groupId.replace(/@g\.us$/, "");
+
+  return callWablasApi("/api/send-message", {
+    phone: cleanGroupId,
     message,
     isGroup: "true",
   });
