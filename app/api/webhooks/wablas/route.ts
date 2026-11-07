@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveOrderAsync, saveWhatsAppLogAsync, getAllOrdersAsync, StoredOrder } from "@/lib/orders-db";
+import {
+  saveOrderAsync,
+  saveWhatsAppLogAsync,
+  getAllOrdersAsync,
+  updateOrderStatusAsync,
+  StoredOrder,
+} from "@/lib/orders-db";
 import {
   parseWhatsAppOrderMessage,
   buildMissingFieldsReply,
@@ -73,6 +79,68 @@ export async function POST(request: NextRequest) {
     if (isGroup && allowedGroupId && cleanTargetGroupId && !cleanTargetGroupId.includes(allowedGroupId) && !allowedGroupId.includes(cleanTargetGroupId)) {
       console.log(`ℹ️ [Wablas Webhook] Pesan diabaikan karena berasal dari group lain (${targetGroupId})`);
       return NextResponse.json({ status: "ignored", reason: "Group not in allowlist" });
+    }
+
+    // ---------------------------------------------------------
+    // HANDLER 1: PERINTAH SELESAI / LUNAS DARI KURIR DI GRUP
+    // Contoh format:
+    // /selesai ORD-WA-123456 Bayar: Tunai COD
+    // /lunas ORD-WA-123456 Bayar: Transfer BCA
+    // /done ORD-WA-123456
+    // ---------------------------------------------------------
+    const lowerText = messageText.toLowerCase();
+    const isCompletionCommand =
+      lowerText.startsWith("/selesai") ||
+      lowerText.startsWith("/lunas") ||
+      lowerText.startsWith("/done") ||
+      lowerText.startsWith("/delivered");
+
+    if (isCompletionCommand) {
+      // Ambil ID pesanan (misal ORD-WA-xxx atau INV-xxx)
+      const orderIdMatch = messageText.match(/(ORD-[A-Za-z0-9-]+|INV-[A-Za-z0-9-]+)/i);
+      if (!orderIdMatch) {
+        if (isGroup && targetGroupId) {
+          await sendWhatsAppToGroup(
+            targetGroupId,
+            "⚠️ *Format Konfirmasi Kurir Belum Tepat*\n\nContoh format yang benar:\n`/selesai ORD-WA-123456 Bayar: Tunai COD`\natau\n`/lunas ORD-WA-123456 Bayar: Transfer BCA`"
+          );
+        }
+        return NextResponse.json({ status: "invalid_completion", reason: "Order ID not found" });
+      }
+
+      const targetId = orderIdMatch[1];
+
+      // Ambil metode bayar jika ada (opsional)
+      const methodMatch = messageText.match(/(?:bayar|via|metode|method)\s*[:=]\s*(.+)/i);
+      const paymentMethod = methodMatch ? methodMatch[1].trim() : "Tunai / COD (Diterima Kurir)";
+
+      // Update status pesanan di Neon Postgres menjadi "Berhasil" (Lunas)
+      const updatedOrder = await updateOrderStatusAsync(
+        targetId,
+        "Berhasil",
+        paymentMethod,
+        `Selesai diantar oleh kurir (WA: ${senderPhone})`
+      );
+
+      if (updatedOrder) {
+        const replyMsg = `✅ *PESANAN SELESAI & LUNAS!*\n\n• *ID Pesanan:* ${updatedOrder.id}\n• *Customer:* ${updatedOrder.customerName}\n• *Metode Bayar:* ${updatedOrder.paymentMethod}\n• *Status:* Berhasil (Lunas)\n\nData transaksi otomatis telah diperbarui di Dashboard Admin website. Terima kasih kurir! 🛵💨`;
+        if (isGroup && targetGroupId) {
+          await sendWhatsAppToGroup(targetGroupId, replyMsg);
+        }
+        return NextResponse.json({
+          status: "success",
+          action: "order_completed",
+          orderId: targetId,
+        });
+      } else {
+        if (isGroup && targetGroupId) {
+          await sendWhatsAppToGroup(
+            targetGroupId,
+            `⚠️ Pesanan dengan ID *${targetId}* tidak ditemukan di database website.`
+          );
+        }
+        return NextResponse.json({ status: "not_found", orderId: targetId });
+      }
     }
 
     // Jika pesan tidak dimulai dengan perintah /order, abaikan (agar bot tidak spam di percakapan biasa)

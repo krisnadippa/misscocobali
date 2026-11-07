@@ -303,8 +303,94 @@ export function saveOrder(order: StoredOrder): boolean {
 }
 
 // -------------------------------------------------------------
-// UPDATE NOTIFICATION STATUS
+// UPDATE ORDER STATUS (LUNAS / BERHASIL / METODE BAYAR)
 // -------------------------------------------------------------
+export async function updateOrderStatusAsync(
+  orderIdOrInvoice: string,
+  newStatus: StoredOrder["status"],
+  paymentMethod?: string,
+  completionNotes?: string
+): Promise<StoredOrder | null> {
+  const sql = getSql();
+  const searchKey = orderIdOrInvoice.trim();
+
+  if (sql) {
+    try {
+      await initNeonDb();
+      const updatedRows = await sql`
+        UPDATE orders
+        SET status = ${newStatus},
+            payment_method = COALESCE(${paymentMethod || null}, payment_method),
+            notification_error = COALESCE(${completionNotes || null}, notification_error),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE LOWER(id) = LOWER(${searchKey})
+           OR LOWER(invoice_no) = LOWER(${searchKey})
+        RETURNING *;
+      `;
+
+      if (updatedRows && updatedRows.length > 0) {
+        const r = updatedRows[0];
+        const updated: StoredOrder = {
+          id: r.id,
+          invoiceNo: r.invoice_no,
+          source: r.source,
+          customerName: r.customer_name,
+          customerPhone: r.customer_phone,
+          customerEmail: r.customer_email,
+          address: r.address,
+          mapsUrl: r.maps_url,
+          itemsSummary: r.items_summary,
+          detailedItems: r.detailed_items || [],
+          totalAmount: Number(r.total_amount),
+          status: r.status,
+          paymentMethod: r.payment_method,
+          createdAt: r.created_at,
+          whatsappMessageId: r.whatsapp_message_id,
+          whatsappGroupId: r.whatsapp_group_id,
+          whatsappSenderPhone: r.whatsapp_sender_phone,
+          rawWhatsappMessage: r.raw_whatsapp_message,
+          notificationStatus: r.notification_status,
+          notificationError: r.notification_error,
+          notificationSentAt: r.notification_sent_at,
+        };
+
+        // Sync to local
+        updateOrderStatus(searchKey, newStatus, paymentMethod);
+        return updated;
+      }
+    } catch (err) {
+      console.warn("⚠️ [Neon Postgres] Error updating order status:", err);
+    }
+  }
+
+  return updateOrderStatus(searchKey, newStatus, paymentMethod);
+}
+
+export function updateOrderStatus(
+  orderIdOrInvoice: string,
+  newStatus: StoredOrder["status"],
+  paymentMethod?: string
+): StoredOrder | null {
+  ensureLocalStorage();
+  try {
+    const orders = getAllOrders();
+    const searchKey = orderIdOrInvoice.trim().toLowerCase();
+    const found = orders.find(
+      (o) => o.id.toLowerCase() === searchKey || o.invoiceNo.toLowerCase() === searchKey
+    );
+
+    if (found) {
+      found.status = newStatus;
+      if (paymentMethod) found.paymentMethod = paymentMethod;
+      fs.writeFileSync(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf8");
+      return found;
+    }
+    return null;
+  } catch (err) {
+    console.error("Failed to update order status locally:", err);
+    return null;
+  }
+}
 export async function updateOrderNotificationStatusAsync(
   orderId: string,
   status: "sent" | "failed" | "skipped",
