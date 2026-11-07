@@ -50,8 +50,9 @@ export async function POST(request: NextRequest) {
     const senderPhone = payload.group?.sender || payload.sender || payload.phone || "Unknown";
 
     // 3. Batasi hanya untuk Grup yang diizinkan (jika WABLAS_GROUP_ID diisi)
-    const allowedGroupId = process.env.WABLAS_GROUP_ID;
-    if (isGroup && allowedGroupId && targetGroupId !== allowedGroupId) {
+    const allowedGroupId = process.env.WABLAS_GROUP_ID ? process.env.WABLAS_GROUP_ID.replace(/@g\.us$/, "") : "";
+    const cleanTargetGroupId = typeof targetGroupId === "string" ? targetGroupId.replace(/@g\.us$/, "") : "";
+    if (isGroup && allowedGroupId && cleanTargetGroupId !== allowedGroupId) {
       console.log(`ℹ️ [Wablas Webhook] Pesan diabaikan karena berasal dari group lain (${targetGroupId})`);
       return NextResponse.json({ status: "ignored", reason: "Group not in allowlist" });
     }
