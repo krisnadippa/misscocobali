@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveOrder, saveWhatsAppLog, getAllOrders, StoredOrder } from "@/lib/orders-db";
+import { saveOrderAsync, saveWhatsAppLogAsync, getAllOrdersAsync, StoredOrder } from "@/lib/orders-db";
 import {
   parseWhatsAppOrderMessage,
   buildMissingFieldsReply,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Anti-Duplikasi: Cek apakah messageId ini sudah pernah diproses
-    const existingOrders = getAllOrders();
+    const existingOrders = await getAllOrdersAsync();
     const alreadyProcessed = existingOrders.some((o) => o.whatsappMessageId === messageId);
     if (alreadyProcessed) {
       console.log(`ℹ️ [Wablas Webhook] Pesan duplikat terdeteksi (ID: ${messageId}), dilewati.`);
@@ -117,11 +117,11 @@ export async function POST(request: NextRequest) {
       notificationSentAt: new Date().toLocaleString("id-ID", { timeZone: "Asia/Makassar" }),
     };
 
-    // Simpan ke Database
-    saveOrder(newOrder);
+    // Simpan ke Database Neon Postgres
+    await saveOrderAsync(newOrder);
 
     // Catat log
-    saveWhatsAppLog({
+    await saveWhatsAppLogAsync({
       id: `IN-${Date.now()}`,
       orderId: newOrderId,
       destination: isGroup ? targetGroupId : senderPhone,

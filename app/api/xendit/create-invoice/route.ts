@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { saveOrder, StoredOrder } from "@/lib/orders-db";
+import { saveOrderAsync, StoredOrder } from "@/lib/orders-db";
 import { notifyNewOrderToWhatsAppGroup } from "@/lib/wablas";
 
 export async function POST(request: Request) {
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       .map((it) => `${it.qty}x ${it.name}`)
       .join(", ") || "Pesanan Produk Zestó";
 
-    // 1. Simpan pesanan ke Database Website
+    // 1. Simpan pesanan ke Database Neon Postgres
     const storedOrder: StoredOrder = {
       id: orderId,
       invoiceNo: externalId,
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       notificationStatus: "skipped",
     };
 
-    saveOrder(storedOrder);
+    await saveOrderAsync(storedOrder);
 
     // 2. Kirim Notifikasi Pesanan ke Grup WhatsApp via Wablas secara Asynchronous (Non-blocking)
     // Jika Wablas down atau trial kuota habis, checkout pelanggan TIDAK TERGANGGU sama sekali.

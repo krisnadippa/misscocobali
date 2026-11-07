@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { getAllOrders } from "@/lib/orders-db";
+import { getAllOrdersAsync } from "@/lib/orders-db";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const orders = getAllOrders();
+    const orders = await getAllOrdersAsync();
     return NextResponse.json({ success: true, orders });
-  } catch {
+  } catch (err) {
     return NextResponse.json(
       { success: false, error: "Failed to fetch orders" },
       { status: 500 }
