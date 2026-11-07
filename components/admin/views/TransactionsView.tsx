@@ -217,11 +217,27 @@ export default function TransactionsView() {
 
   useEffect(() => {
     fetchOrders();
-    // Auto-polling setiap 10 detik agar saat ada /order di WA, tabel otomatis reload
+
+    // Smart Polling: Hanya polling saat tab browser sedang aktif dibuka oleh user
+    // dan perpanjang interval menjadi 45 detik agar sangat hemat request Vercel
     const interval = setInterval(() => {
-      fetchOrders();
-    }, 10000);
-    return () => clearInterval(interval);
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    }, 45000);
+
+    // Auto-refresh sekali saat user kembali membuka tab browser
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // Form State for creating a new transaction
