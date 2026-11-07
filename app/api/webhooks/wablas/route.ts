@@ -20,39 +20,49 @@ import { sendWhatsAppToGroup } from "@/lib/wablas";
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Verifikasi Header / Token Keamanan (Opsional)
-    const secretHeader = request.headers.get("x-wablas-secret") || request.headers.get("authorization");
-    const configuredSecret = process.env.WABLAS_WEBHOOK_SECRET;
+    // 1. Baca Payload JSON Wablas (Mendukung Form-Data atau JSON)
+    let payload: any = null;
+    const contentType = request.headers.get("content-type") || "";
 
-    if (configuredSecret && secretHeader && secretHeader !== configuredSecret && secretHeader !== `Bearer ${configuredSecret}`) {
-      console.warn("⚠️ [Wablas Webhook] Token rahasia webhook tidak cocok.");
-      return NextResponse.json({ error: "Unauthorized webhook" }, { status: 401 });
+    if (contentType.includes("application/json")) {
+      payload = await request.json().catch(() => null);
+    } else if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
+      const formData = await request.formData().catch(() => null);
+      if (formData) {
+        payload = {};
+        formData.forEach((val, key) => {
+          payload[key] = val;
+        });
+      }
+    } else {
+      payload = await request.json().catch(async () => {
+        const text = await request.text();
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      });
     }
-
-    // 2. Baca Payload JSON Wablas
-    const payload = await request.json().catch(() => null);
 
     if (!payload) {
-      return NextResponse.json({ error: "Empty or invalid JSON body" }, { status: 400 });
+      console.warn("⚠️ [Wablas Webhook] Payload kosong atau tidak terbaca.");
+      return NextResponse.json({ error: "Empty payload" }, { status: 400 });
     }
 
-    console.log("📥 [Wablas Webhook Received]:", {
-      event: payload.event,
-      isGroup: payload.isGroup,
-      phone: payload.phone,
-      message: typeof payload.message === "string" ? payload.message.slice(0, 80) : "",
-    });
+    console.log("📥 [Wablas Webhook Received Payload]:", JSON.stringify(payload));
 
     const rawPhone = payload.phone || payload.receiver || payload.to || "";
     const isGroup = Boolean(
       payload.isGroup === true ||
       payload.isGroup === "true" ||
       (typeof rawPhone === "string" && rawPhone.includes("@g.us")) ||
-      Boolean(payload.group?.id)
+      Boolean(payload.group?.id) ||
+      Boolean(payload.groupId)
     );
-    const messageText: string = (payload.message || "").trim();
+    const messageText: string = (payload.message || payload.text || payload.body || "").trim();
     const messageId = payload.id || payload.message_id || `WA-${Date.now()}`;
-    const targetGroupId = payload.group?.id || rawPhone; // ID Group WhatsApp
+    const targetGroupId = payload.group?.id || payload.groupId || rawPhone; // ID Group WhatsApp
     const senderPhone = payload.group?.sender || payload.sender || rawPhone || "Unknown";
 
     // 3. Batasi hanya untuk Grup yang diizinkan (jika WABLAS_GROUP_ID diisi)
