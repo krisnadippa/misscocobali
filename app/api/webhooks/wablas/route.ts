@@ -43,16 +43,24 @@ export async function POST(request: NextRequest) {
       message: typeof payload.message === "string" ? payload.message.slice(0, 80) : "",
     });
 
-    const isGroup = Boolean(payload.isGroup === true || payload.isGroup === "true" || (typeof payload.phone === "string" && payload.phone.includes("@g.us")));
+    const rawPhone = payload.phone || payload.receiver || payload.to || "";
+    const isGroup = Boolean(
+      payload.isGroup === true ||
+      payload.isGroup === "true" ||
+      (typeof rawPhone === "string" && rawPhone.includes("@g.us")) ||
+      Boolean(payload.group?.id)
+    );
     const messageText: string = (payload.message || "").trim();
     const messageId = payload.id || payload.message_id || `WA-${Date.now()}`;
-    const targetGroupId = payload.phone; // Jika group, field phone berisi ID Group WhatsApp (cth: 120363xxx@g.us)
-    const senderPhone = payload.group?.sender || payload.sender || payload.phone || "Unknown";
+    const targetGroupId = payload.group?.id || rawPhone; // ID Group WhatsApp
+    const senderPhone = payload.group?.sender || payload.sender || rawPhone || "Unknown";
 
     // 3. Batasi hanya untuk Grup yang diizinkan (jika WABLAS_GROUP_ID diisi)
     const allowedGroupId = process.env.WABLAS_GROUP_ID ? process.env.WABLAS_GROUP_ID.replace(/@g\.us$/, "") : "";
     const cleanTargetGroupId = typeof targetGroupId === "string" ? targetGroupId.replace(/@g\.us$/, "") : "";
-    if (isGroup && allowedGroupId && cleanTargetGroupId !== allowedGroupId) {
+    
+    // Jika WABLAS_GROUP_ID diisi dan pesan berasal dari grup, pastikan grup cocok. Jika tidak cocok sama sekali, log dan izinkan jika targetGroupId mengandung allowedGroupId
+    if (isGroup && allowedGroupId && cleanTargetGroupId && !cleanTargetGroupId.includes(allowedGroupId) && !allowedGroupId.includes(cleanTargetGroupId)) {
       console.log(`ℹ️ [Wablas Webhook] Pesan diabaikan karena berasal dari group lain (${targetGroupId})`);
       return NextResponse.json({ status: "ignored", reason: "Group not in allowlist" });
     }
